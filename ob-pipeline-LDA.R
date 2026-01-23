@@ -5,15 +5,13 @@
 # if (!require("MASS")) install.packages("MASS")
 # if (!require("devtools")) install.packages("devtools")
 
-library(argparse)
-library(flowCore)
-library(MASS)
 library(devtools)
-library(readr)
-library(purrr)
-library(dplyr)
+library(argparse)
 library(glue)
-library(data.table)
+library(readr)
+library(dplyr)
+
+devtools::install_cran("archive")
 library(archive)
 
 # setwd("~/Documents/courses/Benchmarking/repos/ob-pipeline-LDA/")
@@ -60,7 +58,7 @@ args <- parser$parse_args()
 # FOR TESTING
 # Path to zipped data
 # dataset_path <- "/Users/srz223/Documents/courses/Benchmarking/repos/ob-pipeline-cytof/out/data/data_import/dataset_name-FR-FCM-Z2KP_virus_final_seed-42/preprocessing/data_preprocessing/num-1_test-sample-limit-5"
-# train_x_path <- glue("{dataset_path}/data_import.train.matrix.tar.gz") 
+# train_x_path <- glue("{dataset_path}/data_import.train.matrix.tar.gz")
 # train_y_path <- glue("{dataset_path}/data_import.train.labels.tar.gz")
 # # test_y_path <- glue("{dataset_path}/data_import.test.labels.tar.gz")
 # test_x_path <- glue("{dataset_path}/data_import.test.matrices.tar.gz")
