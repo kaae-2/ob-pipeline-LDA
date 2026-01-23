@@ -5,7 +5,8 @@
 # if (!require("MASS")) install.packages("MASS")
 # if (!require("devtools")) install.packages("devtools")
 
-# library(devtools)
+cat("Loading tools...")
+
 library(argparse)
 library(glue)
 library(readr)
@@ -29,27 +30,22 @@ source("https://raw.githubusercontent.com/tabdelaal/CyTOF-Linear-Classifier/mast
 ##    Wrangle format at location to fit with the tool 
 ## ============================================================
 
+cat("Getting arguments...")
 # GET ARGUMENTS 
 parser <- ArgumentParser(description="FCPS caller")
 
-# parser$add_argument('--data.matrix',
-#                     type="character",
-#                     help='gz-compressed textfile containing the comma-separated data to be clustered.')
-# parser$add_argument('--data.true_labels',
+parser$add_argument('--data.train_matrix',
+                    type="character",
+                    help='gz-compressed textfile containing the comma-separated data to be clustered.')
+parser$add_argument('--data.train_labels',
+                    type="character",
+                    help='gz-compressed textfile with the true labels.')
+parser$add_argument('--data.test_matrix',
+                    type="character",
+                    help='gz-compressed textfile containing the comma-separated data to be clustered.')
+# parser$add_argument('--data.test_labels',
 #                     type="character",
 #                     help='gz-compressed textfile with the true labels.')
-parser$add_argument('--train.data.matrix',
-                    type="character",
-                    help='gz-compressed textfile containing the comma-separated data to be clustered.')
-parser$add_argument('--labels_train',
-                    type="character",
-                    help='gz-compressed textfile with the true labels.')
-parser$add_argument('--test.data.matrix',
-                    type="character",
-                    help='gz-compressed textfile containing the comma-separated data to be clustered.')
-parser$add_argument('--labels_test',
-                    type="character",
-                    help='gz-compressed textfile with the true labels.')
 parser$add_argument("--output_dir", "-o", dest="output_dir", type="character",
                     help="output directory where files will be saved", default=getwd())
 parser$add_argument("--name", "-n", dest="name", type="character", help="name of the dataset")
@@ -65,10 +61,11 @@ args <- parser$parse_args()
 # # test_y_path <- glue("{dataset_path}/data_import.test.labels.tar.gz")
 # test_x_path <- glue("{dataset_path}/data_import.test.matrices.tar.gz")
 
+cat("Loading data...")
 # ---------------------------
 # LOAD TRAINING X
 # ---------------------------
-train_x_path <- args[['train.data.matrix']]
+train_x_path <- args[['data.train_matrix']]
 # train_x_files <- archive(train_x_path)$path
 # 
 # # Open a connection to the inner file and read it as CSV (no column names)
@@ -96,7 +93,7 @@ for (file in train_x_files) {
 # ---------------------------
 # LOAD TRAINING Y
 # ---------------------------
-train_y_path <- args[['labels_train']]
+train_y_path <- args[['data.train_labels']]
 # train_y_files <- archive(train_y_path)$path
 # 
 # # Open a connection to the inner file and read it as CSV (no column names)
@@ -124,7 +121,7 @@ for (file in train_y_files) {
 # ---------------------------
 # LOAD TEST X
 # ---------------------------
-test_x_path <- args[['test.data.matrix']]
+test_x_path <- args[['data.test_matrix']]
 # test_x_files <- archive(test_x_path)$path
 # 
 # # Open a connection to the inner file and read it as CSV (no column names)
