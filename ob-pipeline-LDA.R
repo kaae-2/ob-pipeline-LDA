@@ -5,7 +5,7 @@
 # if (!require("MASS")) install.packages("MASS")
 # if (!require("devtools")) install.packages("devtools")
 
-library(devtools)
+# library(devtools)
 library(argparse)
 library(glue)
 library(readr)
@@ -17,8 +17,12 @@ library(utils)
 ## ============================================================
 ## 1. Load CyTOF-Linear-Classifier functions from GitHub
 ## ============================================================
-source_url("https://raw.githubusercontent.com/tabdelaal/CyTOF-Linear-Classifier/master/CyTOF_LDAtrain.R")
-source_url("https://raw.githubusercontent.com/tabdelaal/CyTOF-Linear-Classifier/master/CyTOF_LDApredict.R")
+# source_url("https://raw.githubusercontent.com/tabdelaal/CyTOF-Linear-Classifier/master/CyTOF_LDAtrain.R")
+# source_url("https://raw.githubusercontent.com/tabdelaal/CyTOF-Linear-Classifier/master/CyTOF_LDApredict.R")
+
+source("https://raw.githubusercontent.com/tabdelaal/CyTOF-Linear-Classifier/master/CyTOF_LDAtrain.R")
+source("https://raw.githubusercontent.com/tabdelaal/CyTOF-Linear-Classifier/master/CyTOF_LDApredict.R")
+
 
 ## ============================================================
 ## 2. Specify paths to your data
