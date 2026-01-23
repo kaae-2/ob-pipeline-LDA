@@ -234,7 +234,10 @@ pred_labels_all <- CyTOF_LDApredict(
   RejectionThreshold = RejectionThreshold
 )
 
-names(pred_labels_all) <- names(test_x_list)
+names(pred_labels_all) <- list.files(TestingSamplesExt)
+
+# pred_labels_all$`LDA_data_import-data-10.csv` %>% length()
+# test_x_list$`data_import-data-10.csv` %>% dim()
 
 ## ============================================================
 ## 5. Export labels 

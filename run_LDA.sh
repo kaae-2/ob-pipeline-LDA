@@ -6,9 +6,8 @@ script_dir="/Users/srz223/Documents/courses/Benchmarking/repos/ob-pipeline-LDA"
 Rscript "${script_dir}/ob-pipeline-LDA.R"\
   --name "lda" \
   --output_dir "${script_dir}/out_test" \
-  --train.data.matrix "${data_dir}/data_import.train.matrix.tar.gz" \
-  --labels_train "${data_dir}/data_import.train.labels.tar.gz" \
-  --test.data.matrix "${data_dir}/data_import.test.matrices.tar.gz" \
-  --labels_test "${data_dir}/data_import.test.labels.tar.gz" \
+  --data.train_matrix "${data_dir}/data_import.train.matrix.tar.gz" \
+  --data.train_labels "${data_dir}/data_import.train.labels.tar.gz" \
+  --data.test_matrix "${data_dir}/data_import.test.matrices.tar.gz" 
   
   
