@@ -215,11 +215,19 @@ names(RelevantMarkers_char) <- 1:length(RelevantMarkers_char)
 RelevantMarkers <- names(RelevantMarkers_char) %>% as.integer()
 
 # ---------------------------
-# Specify paths - should be somewhere in the benchmark - tmp folder?
+# Specify paths - unique tmp folder under output dir
 # ---------------------------
-TrainingSamplesExt <- "./tmp_LDA/TrainingSamplesExt"
-TrainingLabelsExt <- "./tmp_LDA/TrainingLabelsExt"
-TestingSamplesExt <- "./tmp_LDA/TestingSamplesExt"
+output_dir <- args[['output_dir']]
+base_tmp <- file.path(
+  output_dir,
+  paste0("tmp_LDA_", Sys.getpid(), "_", format(Sys.time(), "%Y%m%d%H%M%S"))
+)
+dir.create(base_tmp, recursive = TRUE, showWarnings = FALSE)
+on.exit(unlink(base_tmp, recursive = TRUE), add = TRUE)
+
+TrainingSamplesExt <- file.path(base_tmp, "TrainingSamplesExt")
+TrainingLabelsExt <- file.path(base_tmp, "TrainingLabelsExt")
+TestingSamplesExt <- file.path(base_tmp, "TestingSamplesExt")
 
 dirs <- c(TrainingSamplesExt, TrainingLabelsExt, TestingSamplesExt)
 
@@ -305,7 +313,6 @@ names(pred_labels_all) <- list.files(TestingSamplesExt)
 ## ============================================================ 
 
 # Create a temporary folder to store CSVs
-output_dir <- args[['output_dir']]
 # output_dir <- "./out_test/"
 tmp_dir <- tempdir()
 csv_files <- character(length(pred_labels_all))
