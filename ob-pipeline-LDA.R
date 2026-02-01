@@ -16,13 +16,25 @@ library(utils)
 # setwd("~/Documents/courses/Benchmarking/repos/ob-pipeline-LDA/")
 
 ## ============================================================
-## 1. Load CyTOF-Linear-Classifier functions from GitHub
+## 1. Load CyTOF-Linear-Classifier functions (vendored)
 ## ============================================================
-# source_url("https://raw.githubusercontent.com/tabdelaal/CyTOF-Linear-Classifier/master/CyTOF_LDAtrain.R")
-# source_url("https://raw.githubusercontent.com/tabdelaal/CyTOF-Linear-Classifier/master/CyTOF_LDApredict.R")
+# Vendored from https://github.com/tabdelaal/CyTOF-Linear-Classifier
+get_script_dir <- function() {
+  cmd_args <- commandArgs(trailingOnly = FALSE)
+  file_arg <- "--file="
+  match <- cmd_args[startsWith(cmd_args, file_arg)]
+  if (length(match) == 0) {
+    return(getwd())
+  }
+  script_path <- sub(file_arg, "", match[[1]])
+  dirname(normalizePath(script_path))
+}
 
-source("https://raw.githubusercontent.com/tabdelaal/CyTOF-Linear-Classifier/master/CyTOF_LDAtrain.R")
-source("https://raw.githubusercontent.com/tabdelaal/CyTOF-Linear-Classifier/master/CyTOF_LDApredict.R")
+script_dir <- get_script_dir()
+vendor_dir <- file.path(script_dir, "vendor")
+
+source(file.path(vendor_dir, "CyTOF_LDAtrain.R"))
+source(file.path(vendor_dir, "CyTOF_LDApredict.R"))
 
 
 ## ============================================================
