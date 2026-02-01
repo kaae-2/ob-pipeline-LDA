@@ -118,6 +118,67 @@ for (file in train_y_files) {
   train_y_list[[file]] <- df
 }
 
+get_sample_number <- function(file_name, fallback) {
+  base <- basename(file_name)
+  base <- gsub("\\.csv(\\.gz)?$", "", base)
+  m <- regexpr("[0-9]+(?!.*[0-9])", base, perl = TRUE)
+  if (m[1] == -1) {
+    return(as.character(fallback))
+  }
+  substr(base, m[1], m[1] + attr(m, "match.length") - 1)
+}
+
+align_training_pairs <- function(train_x_list, train_y_list) {
+  x_names <- names(train_x_list)
+  y_names <- names(train_y_list)
+  x_ids <- vapply(seq_along(x_names), function(i) get_sample_number(x_names[i], i), character(1))
+  y_ids <- vapply(seq_along(y_names), function(i) get_sample_number(y_names[i], i), character(1))
+
+  y_id_counts <- table(y_ids)
+  use_id_match <- all(x_ids %in% y_ids) && all(y_id_counts == 1)
+
+  aligned_x <- setNames(vector("list", length(x_names)), x_names)
+  aligned_y <- setNames(vector("list", length(x_names)), x_names)
+
+  for (i in seq_along(x_names)) {
+    x_name <- x_names[i]
+    y_name <- if (use_id_match) {
+      y_names[match(x_ids[i], y_ids)]
+    } else {
+      y_names[i]
+    }
+    if (is.na(y_name) || is.null(train_y_list[[y_name]])) {
+      stop(glue("Missing labels for training sample: {x_name}"))
+    }
+
+    x <- train_x_list[[x_name]]
+    y <- train_y_list[[y_name]]
+    y <- y[, 1, drop = FALSE]
+
+    valid_rows <- complete.cases(x) & apply(is.finite(as.matrix(x)), 1, all)
+    if (any(!valid_rows)) {
+      message("Filtering invalid rows for ", x_name, ": ", sum(!valid_rows))
+      x <- x[valid_rows, , drop = FALSE]
+      y <- y[valid_rows, , drop = FALSE]
+    }
+
+    if (nrow(x) != nrow(y)) {
+      stop(glue(
+        "Length mismatch after alignment for {x_name}: data={nrow(x)} labels={nrow(y)}"
+      ))
+    }
+
+    aligned_x[[x_name]] <- x
+    aligned_y[[x_name]] <- y
+  }
+
+  list(train_x = aligned_x, train_y = aligned_y)
+}
+
+aligned <- align_training_pairs(train_x_list, train_y_list)
+train_x_list <- aligned$train_x
+train_y_list <- aligned$train_y
+
 # ---------------------------
 # LOAD TEST X
 # ---------------------------
