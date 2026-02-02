@@ -65,6 +65,15 @@ parser$add_argument("--name", "-n", dest="name", type="character", help="name of
 
 args <- parser$parse_args()
 
+# Prepare a unique temp workspace under output dir to avoid collisions and /tmp limits
+output_dir <- args[['output_dir']]
+base_tmp <- file.path(
+  output_dir,
+  paste0("tmp_LDA_", Sys.getpid(), "_", format(Sys.time(), "%Y%m%d%H%M%S"))
+)
+dir.create(base_tmp, recursive = TRUE, showWarnings = FALSE)
+on.exit(unlink(base_tmp, recursive = TRUE), add = TRUE)
+
 # FOR TESTING
 # Path to zipped data
 # dataset_path <- "/Users/srz223/Documents/courses/Benchmarking/repos/ob-pipeline-cytof/out/data/data_import/dataset_name-FR-FCM-Z2KP_virus_final_seed-42/preprocessing/data_preprocessing/num-1_test-sample-limit-5"
@@ -94,7 +103,8 @@ train_x_files <- utils::untar(train_x_path, list = TRUE)
 train_x_list <- setNames(vector("list", length(train_x_files)), train_x_files)
 
 # extract to a temp dir
-tmp <- tempdir()
+tmp <- file.path(base_tmp, "extract_train_x")
+dir.create(tmp, recursive = TRUE, showWarnings = FALSE)
 utils::untar(train_x_path, exdir = tmp)
 
 for (file in train_x_files) {
@@ -122,7 +132,8 @@ train_y_files <- utils::untar(train_y_path, list = TRUE)
 train_y_list <- setNames(vector("list", length(train_y_files)), train_y_files)
 
 # extract to a temp dir
-tmp <- tempdir()
+tmp <- file.path(base_tmp, "extract_train_y")
+dir.create(tmp, recursive = TRUE, showWarnings = FALSE)
 utils::untar(train_y_path, exdir = tmp)
 
 for (file in train_y_files) {
@@ -211,7 +222,8 @@ test_x_files <- utils::untar(test_x_path, list = TRUE)
 test_x_list <- setNames(vector("list", length(test_x_files)), test_x_files)
 
 # extract to a temp dir
-tmp <- tempdir()
+tmp <- file.path(base_tmp, "extract_test_x")
+dir.create(tmp, recursive = TRUE, showWarnings = FALSE)
 utils::untar(test_x_path, exdir = tmp)
 
 for (file in test_x_files) {
@@ -229,14 +241,6 @@ RelevantMarkers <- names(RelevantMarkers_char) %>% as.integer()
 # ---------------------------
 # Specify paths - unique tmp folder under output dir
 # ---------------------------
-output_dir <- args[['output_dir']]
-base_tmp <- file.path(
-  output_dir,
-  paste0("tmp_LDA_", Sys.getpid(), "_", format(Sys.time(), "%Y%m%d%H%M%S"))
-)
-dir.create(base_tmp, recursive = TRUE, showWarnings = FALSE)
-on.exit(unlink(base_tmp, recursive = TRUE), add = TRUE)
-
 TrainingSamplesExt <- file.path(base_tmp, "TrainingSamplesExt")
 TrainingLabelsExt <- file.path(base_tmp, "TrainingLabelsExt")
 TestingSamplesExt <- file.path(base_tmp, "TestingSamplesExt")
@@ -326,7 +330,8 @@ names(pred_labels_all) <- list.files(TestingSamplesExt)
 
 # Create a temporary folder to store CSVs
 # output_dir <- "./out_test/"
-tmp_dir <- tempdir()
+tmp_dir <- file.path(base_tmp, "predictions_tmp")
+dir.create(tmp_dir, recursive = TRUE, showWarnings = FALSE)
 csv_files <- character(length(pred_labels_all))
 
 # Loop through the list and write each CSV
