@@ -202,6 +202,31 @@ aligned <- align_training_pairs(train_x_list, train_y_list)
 train_x_list <- aligned$train_x
 train_y_list <- aligned$train_y
 
+# Filter unlabeled rows (label 0 or NA) from training data
+filter_unlabeled <- function(train_x_list, train_y_list) {
+  for (nm in names(train_y_list)) {
+    y_raw <- train_y_list[[nm]][[1]]
+    y_num <- suppressWarnings(as.numeric(as.character(y_raw)))
+    if (all(is.na(y_num))) {
+      next
+    }
+    unlabeled_mask <- is.na(y_num) | y_num == 0
+    if (any(unlabeled_mask)) {
+      keep <- !unlabeled_mask
+      if (!any(keep)) {
+        stop(glue("All training labels are unlabeled for {nm}"))
+      }
+      train_x_list[[nm]] <- train_x_list[[nm]][keep, , drop = FALSE]
+      train_y_list[[nm]] <- data.frame(V1 = y_num[keep])
+    }
+  }
+  list(train_x = train_x_list, train_y = train_y_list)
+}
+
+filtered <- filter_unlabeled(train_x_list, train_y_list)
+train_x_list <- filtered$train_x
+train_y_list <- filtered$train_y
+
 # ---------------------------
 # LOAD TEST X
 # ---------------------------
