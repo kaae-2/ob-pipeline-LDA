@@ -8,6 +8,7 @@
 cat("Loading tools...")
 
 library(argparse)
+library(data.table)
 library(glue)
 library(readr)
 library(dplyr)
@@ -108,7 +109,18 @@ list_csv_files <- function(path) {
 }
 
 read_csv_no_header <- function(path) {
-  read_csv(path, col_names = FALSE, show_col_types = FALSE)
+  data.table::fread(path, header = FALSE, data.table = FALSE, showProgress = FALSE)
+}
+
+read_label_no_header <- function(path) {
+  label_df <- data.table::fread(
+    path,
+    header = FALSE,
+    data.table = FALSE,
+    select = 1,
+    showProgress = FALSE
+  )
+  suppressWarnings(as.numeric(label_df[[1]]))
 }
 
 # ---------------------------
@@ -134,9 +146,6 @@ dirs <- c(
 for (d in dirs) {
   if (!dir.exists(d)) {
     dir.create(d, recursive = TRUE)
-    message("Created: ", d)
-  } else {
-    message("Exists: ", d)
   }
 }
 
@@ -185,19 +194,17 @@ for (i in seq_along(train_x_files)) {
   }
 
   x <- read_csv_no_header(x_file)
-  y <- read_csv_no_header(y_file)
-  y <- y[, 1, drop = FALSE]
+  y_num <- read_label_no_header(y_file)
 
-  if (nrow(x) != nrow(y)) {
+  if (nrow(x) != length(y_num)) {
     stop(glue(
-      "Length mismatch for {basename(x_file)} and {basename(y_file)}: data={nrow(x)} labels={nrow(y)}"
+      "Length mismatch for {basename(x_file)} and {basename(y_file)}: data={nrow(x)} labels={length(y_num)}"
     ))
   }
 
-  x_matrix <- as.matrix(data.frame(lapply(x, function(col) suppressWarnings(as.numeric(col)))))
-  valid_rows <- complete.cases(x_matrix) & apply(is.finite(x_matrix), 1, all)
+  x_matrix <- as.matrix(x)
+  valid_rows <- rowSums(!is.finite(x_matrix)) == 0
 
-  y_num <- suppressWarnings(as.numeric(as.character(y[[1]])))
   unlabeled_mask <- is.na(y_num) | y_num == 0
   keep <- valid_rows & !unlabeled_mask
 
@@ -217,18 +224,8 @@ for (i in seq_along(train_x_files)) {
   }
 
   out_name <- glue("LDA_{basename(x_file)}")
-  write_delim(
-    x = x_clean,
-    file = file.path(TrainingSamplesExt, out_name),
-    col_names = FALSE,
-    delim = ","
-  )
-  write_delim(
-    x = y_clean,
-    file = file.path(TrainingLabelsExt, out_name),
-    col_names = FALSE,
-    delim = ","
-  )
+  data.table::fwrite(x_clean, file = file.path(TrainingSamplesExt, out_name), col.names = FALSE)
+  data.table::fwrite(y_clean, file = file.path(TrainingLabelsExt, out_name), col.names = FALSE)
 }
 
 if (is.null(marker_count) || marker_count < 1) {
@@ -237,7 +234,11 @@ if (is.null(marker_count) || marker_count < 1) {
 
 for (file in test_x_files) {
   out_name <- glue("LDA_{basename(file)}")
-  ok <- file.copy(file, file.path(TestingSamplesExt, out_name), overwrite = TRUE)
+  staged_path <- file.path(TestingSamplesExt, out_name)
+  ok <- file.link(file, staged_path)
+  if (!ok) {
+    ok <- file.copy(file, staged_path, overwrite = TRUE)
+  }
   if (!ok) {
     stop(glue("Failed to stage test file {basename(file)}"))
   }
@@ -297,8 +298,8 @@ for (name in names(pred_labels_all)) {
   
   # If the element is a data.frame or list, coerce to data.frame
   df <- as.data.frame(pred_labels_all[[name]])
-  
-  write_delim(df, file = csv_file, col_names = FALSE, quote = "none", delim = ",")
+
+  data.table::fwrite(df, file = csv_file, col.names = FALSE, quote = FALSE)
   csv_files[i] <- csv_file
   i <- i + 1
   
