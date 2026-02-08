@@ -83,63 +83,9 @@ on.exit(unlink(base_tmp, recursive = TRUE), add = TRUE)
 # test_x_path <- glue("{dataset_path}/data_import.test.matrices.tar.gz")
 
 cat("Loading data...")
-# ---------------------------
-# LOAD TRAINING X
-# ---------------------------
 train_x_path <- args[['data.train_matrix']]
-# train_x_files <- archive(train_x_path)$path
-# 
-# # Open a connection to the inner file and read it as CSV (no column names)
-# train_x_list <- vector("list", length(train_x_files))
-# names(train_x_list) <- train_x_files
-# 
-# for (file in train_x_files){
-#   con <- archive_read(train_x_path, file)
-#   df <- read_csv(con, col_names = FALSE)
-#   train_x_list[[file]] <- df
-# }
-
-train_x_files <- utils::untar(train_x_path, list = TRUE)
-train_x_list <- setNames(vector("list", length(train_x_files)), train_x_files)
-
-# extract to a temp dir
-tmp <- file.path(base_tmp, "extract_train_x")
-dir.create(tmp, recursive = TRUE, showWarnings = FALSE)
-utils::untar(train_x_path, exdir = tmp)
-
-for (file in train_x_files) {
-  df <- read_csv(file.path(tmp, file), col_names = FALSE)
-  train_x_list[[file]] <- df
-}
-
-# ---------------------------
-# LOAD TRAINING Y
-# ---------------------------
 train_y_path <- args[['data.train_labels']]
-# train_y_files <- archive(train_y_path)$path
-# 
-# # Open a connection to the inner file and read it as CSV (no column names)
-# train_y_list <- vector("list", length(train_y_files))
-# names(train_y_list) <- train_y_files
-# 
-# for (file in train_y_files){
-#   con <- archive_read(train_y_path, file)
-#   df <- read_csv(con, col_names = FALSE)
-#   train_y_list[[file]] <- df
-# }
-
-train_y_files <- utils::untar(train_y_path, list = TRUE)
-train_y_list <- setNames(vector("list", length(train_y_files)), train_y_files)
-
-# extract to a temp dir
-tmp <- file.path(base_tmp, "extract_train_y")
-dir.create(tmp, recursive = TRUE, showWarnings = FALSE)
-utils::untar(train_y_path, exdir = tmp)
-
-for (file in train_y_files) {
-  df <- read_csv(file.path(tmp, file), col_names = FALSE)
-  train_y_list[[file]] <- df
-}
+test_x_path <- args[['data.test_matrix']]
 
 get_sample_number <- function(file_name, fallback) {
   base <- basename(file_name)
@@ -151,117 +97,19 @@ get_sample_number <- function(file_name, fallback) {
   substr(base, m[1], m[1] + attr(m, "match.length") - 1)
 }
 
-align_training_pairs <- function(train_x_list, train_y_list) {
-  x_names <- names(train_x_list)
-  y_names <- names(train_y_list)
-  x_ids <- vapply(seq_along(x_names), function(i) get_sample_number(x_names[i], i), character(1))
-  y_ids <- vapply(seq_along(y_names), function(i) get_sample_number(y_names[i], i), character(1))
-
-  y_id_counts <- table(y_ids)
-  use_id_match <- all(x_ids %in% y_ids) && all(y_id_counts == 1)
-
-  aligned_x <- setNames(vector("list", length(x_names)), x_names)
-  aligned_y <- setNames(vector("list", length(x_names)), x_names)
-
-  for (i in seq_along(x_names)) {
-    x_name <- x_names[i]
-    y_name <- if (use_id_match) {
-      y_names[match(x_ids[i], y_ids)]
-    } else {
-      y_names[i]
-    }
-    if (is.na(y_name) || is.null(train_y_list[[y_name]])) {
-      stop(glue("Missing labels for training sample: {x_name}"))
-    }
-
-    x <- train_x_list[[x_name]]
-    y <- train_y_list[[y_name]]
-    y <- y[, 1, drop = FALSE]
-
-    valid_rows <- complete.cases(x) & apply(is.finite(as.matrix(x)), 1, all)
-    if (any(!valid_rows)) {
-      message("Filtering invalid rows for ", x_name, ": ", sum(!valid_rows))
-      x <- x[valid_rows, , drop = FALSE]
-      y <- y[valid_rows, , drop = FALSE]
-    }
-
-    if (nrow(x) != nrow(y)) {
-      stop(glue(
-        "Length mismatch after alignment for {x_name}: data={nrow(x)} labels={nrow(y)}"
-      ))
-    }
-
-    aligned_x[[x_name]] <- x
-    aligned_y[[x_name]] <- y
-  }
-
-  list(train_x = aligned_x, train_y = aligned_y)
+extract_archive <- function(path, out_dir) {
+  dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+  utils::untar(path, exdir = out_dir)
 }
 
-aligned <- align_training_pairs(train_x_list, train_y_list)
-train_x_list <- aligned$train_x
-train_y_list <- aligned$train_y
-
-# Filter unlabeled rows (label 0 or NA) from training data
-filter_unlabeled <- function(train_x_list, train_y_list) {
-  for (nm in names(train_y_list)) {
-    y_raw <- train_y_list[[nm]][[1]]
-    y_num <- suppressWarnings(as.numeric(as.character(y_raw)))
-    if (all(is.na(y_num))) {
-      next
-    }
-    unlabeled_mask <- is.na(y_num) | y_num == 0
-    if (any(unlabeled_mask)) {
-      keep <- !unlabeled_mask
-      if (!any(keep)) {
-        stop(glue("All training labels are unlabeled for {nm}"))
-      }
-      train_x_list[[nm]] <- train_x_list[[nm]][keep, , drop = FALSE]
-      train_y_list[[nm]] <- data.frame(V1 = y_num[keep])
-    }
-  }
-  list(train_x = train_x_list, train_y = train_y_list)
+list_csv_files <- function(path) {
+  files <- list.files(path, pattern = "\\.csv$", full.names = TRUE)
+  files[order(basename(files))]
 }
 
-filtered <- filter_unlabeled(train_x_list, train_y_list)
-train_x_list <- filtered$train_x
-train_y_list <- filtered$train_y
-
-# ---------------------------
-# LOAD TEST X
-# ---------------------------
-test_x_path <- args[['data.test_matrix']]
-# test_x_files <- archive(test_x_path)$path
-# 
-# # Open a connection to the inner file and read it as CSV (no column names)
-# test_x_list <- vector("list", length(test_x_files))
-# names(test_x_list) <- test_x_files
-# 
-# for (file in test_x_files){
-#   con <- archive_read(test_x_path, file)
-#   df <- read_csv(con, col_names = FALSE)
-#   test_x_list[[file]] <- df
-# }
-
-test_x_files <- utils::untar(test_x_path, list = TRUE)
-test_x_list <- setNames(vector("list", length(test_x_files)), test_x_files)
-
-# extract to a temp dir
-tmp <- file.path(base_tmp, "extract_test_x")
-dir.create(tmp, recursive = TRUE, showWarnings = FALSE)
-utils::untar(test_x_path, exdir = tmp)
-
-for (file in test_x_files) {
-  df <- read_csv(file.path(tmp, file), col_names = FALSE)
-  test_x_list[[file]] <- df
+read_csv_no_header <- function(path) {
+  read_csv(path, col_names = FALSE, show_col_types = FALSE)
 }
-
-# ---------------------------
-# RelevantMarkers needed for function 
-# ---------------------------
-RelevantMarkers_char <- colnames(train_x_list[[1]]) # Assuming all training samples have same columns 
-names(RelevantMarkers_char) <- 1:length(RelevantMarkers_char)
-RelevantMarkers <- names(RelevantMarkers_char) %>% as.integer()
 
 # ---------------------------
 # Specify paths - unique tmp folder under output dir
@@ -270,7 +118,18 @@ TrainingSamplesExt <- file.path(base_tmp, "TrainingSamplesExt")
 TrainingLabelsExt <- file.path(base_tmp, "TrainingLabelsExt")
 TestingSamplesExt <- file.path(base_tmp, "TestingSamplesExt")
 
-dirs <- c(TrainingSamplesExt, TrainingLabelsExt, TestingSamplesExt)
+ExtractTrainX <- file.path(base_tmp, "extract_train_x")
+ExtractTrainY <- file.path(base_tmp, "extract_train_y")
+ExtractTestX <- file.path(base_tmp, "extract_test_x")
+
+dirs <- c(
+  TrainingSamplesExt,
+  TrainingLabelsExt,
+  TestingSamplesExt,
+  ExtractTrainX,
+  ExtractTrainY,
+  ExtractTestX
+)
 
 for (d in dirs) {
   if (!dir.exists(d)) {
@@ -281,39 +140,110 @@ for (d in dirs) {
   }
 }
 
-# Save without header
-invisible(
-  lapply(names(train_x_list), function(nm) {
-    write_delim(
-      x = train_x_list[[nm]],
-      file = file.path(TrainingSamplesExt, glue("LDA_{nm}")), # already have csv extension
-      col_names = FALSE,
-      delim = ","
-    )
-  })
-)
+extract_archive(train_x_path, ExtractTrainX)
+extract_archive(train_y_path, ExtractTrainY)
+extract_archive(test_x_path, ExtractTestX)
 
-invisible(
-  lapply(names(train_y_list), function(nm) {
-    write_delim(
-      x = train_y_list[[nm]],
-      file = file.path(TrainingLabelsExt, glue("LDA_{nm}")), # already have csv extension
-      col_names = FALSE,
-      delim = ","
-    )
-  })
-)
+train_x_files <- list_csv_files(ExtractTrainX)
+train_y_files <- list_csv_files(ExtractTrainY)
+test_x_files <- list_csv_files(ExtractTestX)
 
-invisible(
-  lapply(names(test_x_list), function(nm) {
-    write_delim(
-      x = test_x_list[[nm]],
-      file = file.path(TestingSamplesExt, glue("LDA_{nm}")), # already have csv extension
-      col_names = FALSE,
-      delim = ","
-    )
-  })
-)
+if (length(train_x_files) == 0) {
+  stop("No training matrix CSV files found after extraction.")
+}
+if (length(train_y_files) == 0) {
+  stop("No training label CSV files found after extraction.")
+}
+if (length(test_x_files) == 0) {
+  stop("No test matrix CSV files found after extraction.")
+}
+
+x_names <- basename(train_x_files)
+y_names <- basename(train_y_files)
+x_ids <- vapply(seq_along(x_names), function(i) get_sample_number(x_names[i], i), character(1))
+y_ids <- vapply(seq_along(y_names), function(i) get_sample_number(y_names[i], i), character(1))
+y_id_counts <- table(y_ids)
+use_id_match <- all(x_ids %in% y_ids) && all(y_id_counts == 1)
+
+if (!use_id_match && length(train_x_files) != length(train_y_files)) {
+  stop(glue(
+    "Training X/Y file count mismatch and sample-id matching failed: x={length(train_x_files)} y={length(train_y_files)}"
+  ))
+}
+
+marker_count <- NULL
+for (i in seq_along(train_x_files)) {
+  x_file <- train_x_files[[i]]
+  y_file <- if (use_id_match) {
+    matched <- match(x_ids[i], y_ids)
+    if (is.na(matched)) {
+      stop(glue("Missing labels for training sample id {x_ids[i]} ({basename(x_file)})"))
+    }
+    train_y_files[[matched]]
+  } else {
+    train_y_files[[i]]
+  }
+
+  x <- read_csv_no_header(x_file)
+  y <- read_csv_no_header(y_file)
+  y <- y[, 1, drop = FALSE]
+
+  if (nrow(x) != nrow(y)) {
+    stop(glue(
+      "Length mismatch for {basename(x_file)} and {basename(y_file)}: data={nrow(x)} labels={nrow(y)}"
+    ))
+  }
+
+  x_matrix <- as.matrix(data.frame(lapply(x, function(col) suppressWarnings(as.numeric(col)))))
+  valid_rows <- complete.cases(x_matrix) & apply(is.finite(x_matrix), 1, all)
+
+  y_num <- suppressWarnings(as.numeric(as.character(y[[1]])))
+  unlabeled_mask <- is.na(y_num) | y_num == 0
+  keep <- valid_rows & !unlabeled_mask
+
+  if (!any(keep)) {
+    stop(glue("Training sample {basename(x_file)} has no valid labeled rows after filtering."))
+  }
+
+  x_clean <- as.data.frame(x_matrix[keep, , drop = FALSE])
+  y_clean <- data.frame(V1 = y_num[keep])
+
+  if (is.null(marker_count)) {
+    marker_count <- ncol(x_clean)
+  } else if (ncol(x_clean) != marker_count) {
+    stop(glue(
+      "Training marker count mismatch: expected {marker_count}, got {ncol(x_clean)} for {basename(x_file)}"
+    ))
+  }
+
+  out_name <- glue("LDA_{basename(x_file)}")
+  write_delim(
+    x = x_clean,
+    file = file.path(TrainingSamplesExt, out_name),
+    col_names = FALSE,
+    delim = ","
+  )
+  write_delim(
+    x = y_clean,
+    file = file.path(TrainingLabelsExt, out_name),
+    col_names = FALSE,
+    delim = ","
+  )
+}
+
+if (is.null(marker_count) || marker_count < 1) {
+  stop("No valid training markers found after filtering.")
+}
+
+for (file in test_x_files) {
+  out_name <- glue("LDA_{basename(file)}")
+  ok <- file.copy(file, file.path(TestingSamplesExt, out_name), overwrite = TRUE)
+  if (!ok) {
+    stop(glue("Failed to stage test file {basename(file)}"))
+  }
+}
+
+RelevantMarkers <- seq_len(marker_count)
 
 ## ============================================================
 ## 3. Train LDA model
@@ -379,5 +309,4 @@ name <- args[['name']]
 tar(tarfile = glue("{output_dir}/{name}_predicted_labels.tar.gz"), files = csv_files, compression = "gzip", tar = "internal")
 
 
-# Delete tmp folder now that we used it
-unlink("./tmp_LDA/", recursive = TRUE)
+# Temporary workspace is cleaned by on.exit.
