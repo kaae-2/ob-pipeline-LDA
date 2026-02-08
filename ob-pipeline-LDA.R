@@ -123,6 +123,30 @@ read_label_no_header <- function(path) {
   suppressWarnings(as.numeric(label_df[[1]]))
 }
 
+predict_labels_for_file <- function(model, csv_path, rejection_threshold) {
+  temp <- data.table::fread(csv_path, header = FALSE, data.table = FALSE, showProgress = FALSE)
+  testing_data <- as.data.frame(temp)[, model$markers, drop = FALSE]
+  rm(temp)
+
+  if (model$Transformation != FALSE) {
+    if (model$Transformation == "arcsinh") {
+      testing_data <- asinh(testing_data / 5)
+    } else if (model$Transformation == "log") {
+      testing_data <- log(testing_data)
+      testing_data[sapply(testing_data, is.infinite)] <- 0
+    }
+  }
+
+  predictions <- predict(model$LDAclassifier, testing_data)
+  post_max <- apply(predictions$posterior, 1, max)
+  classes <- as.character(predictions$class)
+  classes[post_max < rejection_threshold] <- "unknown"
+
+  rm(testing_data, predictions, post_max)
+  invisible(gc(verbose = FALSE))
+  classes
+}
+
 # ---------------------------
 # Specify paths - unique tmp folder under output dir
 # ---------------------------
@@ -268,41 +292,29 @@ cat("Predicting…\n")
 
 RejectionThreshold <- 0.7 # parameter, set to 0.7 in example and is hence interpreted and default.
 
-pred_labels_all <- CyTOF_LDApredict(
-  Model = LDAclassifier,
-  TestingSamplesExt = TestingSamplesExt,
-  mode = "CSV",
-  RejectionThreshold = RejectionThreshold
-)
-
-names(pred_labels_all) <- list.files(TestingSamplesExt)
-
-# pred_labels_all$`LDA_data_import-data-10.csv` %>% length()
-# test_x_list$`data_import-data-10.csv` %>% dim()
+prediction_files <- list.files(TestingSamplesExt, pattern = "\\.csv$", full.names = TRUE)
+if (length(prediction_files) == 0) {
+  stop("No staged test CSV files found for prediction.")
+}
 
 ## ============================================================
-## 5. Export labels 
-## ============================================================ 
+## 5. Export labels
+## ============================================================
 
-# Create a temporary folder to store CSVs
-# output_dir <- "./out_test/"
 tmp_dir <- file.path(base_tmp, "predictions_tmp")
 dir.create(tmp_dir, recursive = TRUE, showWarnings = FALSE)
-csv_files <- character(length(pred_labels_all))
+csv_files <- character(length(prediction_files))
 
-# Loop through the list and write each CSV
-i <- 1
-for (name in names(pred_labels_all)) {
-  
-  csv_file <- file.path(tmp_dir, name)
-  
-  # If the element is a data.frame or list, coerce to data.frame
-  df <- as.data.frame(pred_labels_all[[name]])
+for (i in seq_along(prediction_files)) {
+  prediction_file <- prediction_files[[i]]
+  pred_labels <- predict_labels_for_file(LDAclassifier, prediction_file, RejectionThreshold)
 
-  data.table::fwrite(df, file = csv_file, col.names = FALSE, quote = FALSE)
+  csv_file <- file.path(tmp_dir, basename(prediction_file))
+  data.table::fwrite(as.data.frame(pred_labels), file = csv_file, col.names = FALSE, quote = FALSE)
   csv_files[i] <- csv_file
-  i <- i + 1
-  
+
+  rm(pred_labels)
+  invisible(gc(verbose = FALSE))
 }
 
 # Create tar.gz archive of all CSVs
