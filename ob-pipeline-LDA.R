@@ -17,28 +17,6 @@ library(utils)
 # setwd("~/Documents/courses/Benchmarking/repos/ob-pipeline-LDA/")
 
 ## ============================================================
-## 1. Load CyTOF-Linear-Classifier functions (vendored)
-## ============================================================
-# Vendored from https://github.com/tabdelaal/CyTOF-Linear-Classifier
-get_script_dir <- function() {
-  cmd_args <- commandArgs(trailingOnly = FALSE)
-  file_arg <- "--file="
-  match <- cmd_args[startsWith(cmd_args, file_arg)]
-  if (length(match) == 0) {
-    return(getwd())
-  }
-  script_path <- sub(file_arg, "", match[[1]])
-  dirname(normalizePath(script_path))
-}
-
-script_dir <- get_script_dir()
-vendor_dir <- file.path(script_dir, "vendor")
-
-source(file.path(vendor_dir, "CyTOF_LDAtrain.R"))
-source(file.path(vendor_dir, "CyTOF_LDApredict.R"))
-
-
-## ============================================================
 ## 2. Specify paths to your data
 ##    Wrangle format at location to fit with the tool 
 ## ============================================================
@@ -123,9 +101,23 @@ read_label_no_header <- function(path) {
   suppressWarnings(as.numeric(label_df[[1]]))
 }
 
+train_lda_model <- function(training_data, training_labels, transformation, markers) {
+  if (transformation != FALSE) {
+    if (transformation == "arcsinh") {
+      training_data <- asinh(training_data / 5)
+    } else if (transformation == "log") {
+      training_data <- log(training_data)
+      training_data[sapply(training_data, is.infinite)] <- 0
+    }
+  }
+
+  classifier <- MASS::lda(training_data, as.factor(training_labels))
+  list(LDAclassifier = classifier, Transformation = transformation, markers = markers)
+}
+
 predict_labels_for_file <- function(model, csv_path, rejection_threshold) {
   temp <- data.table::fread(csv_path, header = FALSE, data.table = FALSE, showProgress = FALSE)
-  testing_data <- as.data.frame(temp)[, model$markers, drop = FALSE]
+  testing_data <- temp[, model$markers, drop = FALSE]
   rm(temp)
 
   if (model$Transformation != FALSE) {
@@ -150,18 +142,11 @@ predict_labels_for_file <- function(model, csv_path, rejection_threshold) {
 # ---------------------------
 # Specify paths - unique tmp folder under output dir
 # ---------------------------
-TrainingSamplesExt <- file.path(base_tmp, "TrainingSamplesExt")
-TrainingLabelsExt <- file.path(base_tmp, "TrainingLabelsExt")
-TestingSamplesExt <- file.path(base_tmp, "TestingSamplesExt")
-
 ExtractTrainX <- file.path(base_tmp, "extract_train_x")
 ExtractTrainY <- file.path(base_tmp, "extract_train_y")
 ExtractTestX <- file.path(base_tmp, "extract_test_x")
 
 dirs <- c(
-  TrainingSamplesExt,
-  TrainingLabelsExt,
-  TestingSamplesExt,
   ExtractTrainX,
   ExtractTrainY,
   ExtractTestX
@@ -205,6 +190,8 @@ if (!use_id_match && length(train_x_files) != length(train_y_files)) {
 }
 
 marker_count <- NULL
+train_feature_chunks <- vector("list", length(train_x_files))
+train_label_chunks <- vector("list", length(train_x_files))
 for (i in seq_along(train_x_files)) {
   x_file <- train_x_files[[i]]
   y_file <- if (use_id_match) {
@@ -247,28 +234,17 @@ for (i in seq_along(train_x_files)) {
     ))
   }
 
-  out_name <- glue("LDA_{basename(x_file)}")
-  data.table::fwrite(x_clean, file = file.path(TrainingSamplesExt, out_name), col.names = FALSE)
-  data.table::fwrite(y_clean, file = file.path(TrainingLabelsExt, out_name), col.names = FALSE)
+  train_feature_chunks[[i]] <- x_clean
+  train_label_chunks[[i]] <- y_clean[[1]]
 }
 
 if (is.null(marker_count) || marker_count < 1) {
   stop("No valid training markers found after filtering.")
 }
 
-for (file in test_x_files) {
-  out_name <- glue("LDA_{basename(file)}")
-  staged_path <- file.path(TestingSamplesExt, out_name)
-  ok <- file.link(file, staged_path)
-  if (!ok) {
-    ok <- file.copy(file, staged_path, overwrite = TRUE)
-  }
-  if (!ok) {
-    stop(glue("Failed to stage test file {basename(file)}"))
-  }
-}
-
 RelevantMarkers <- seq_len(marker_count)
+training_data <- do.call(rbind, train_feature_chunks)
+training_labels <- unlist(train_label_chunks, use.names = FALSE)
 
 ## ============================================================
 ## 3. Train LDA model
@@ -276,14 +252,15 @@ RelevantMarkers <- seq_len(marker_count)
 
 cat("Training LDA model…\n")
 
-LDAclassifier <- CyTOF_LDAtrain(
-  TrainingSamplesExt = TrainingSamplesExt,
-  TrainingLabelsExt = TrainingLabelsExt,
-  mode = "CSV",
-  RelevantMarkers = RelevantMarkers,
-  # LabelIndex = FALSE,
-  Transformation = FALSE
+LDAclassifier <- train_lda_model(
+  training_data = training_data,
+  training_labels = training_labels,
+  transformation = FALSE,
+  markers = RelevantMarkers
 )
+
+rm(training_data, training_labels, train_feature_chunks, train_label_chunks)
+invisible(gc(verbose = FALSE))
 
 ## ============================================================
 ## 4. Predict labels on test data
@@ -292,9 +269,9 @@ cat("Predicting…\n")
 
 RejectionThreshold <- 0.7 # parameter, set to 0.7 in example and is hence interpreted and default.
 
-prediction_files <- list.files(TestingSamplesExt, pattern = "\\.csv$", full.names = TRUE)
+prediction_files <- test_x_files
 if (length(prediction_files) == 0) {
-  stop("No staged test CSV files found for prediction.")
+  stop("No test CSV files found for prediction.")
 }
 
 ## ============================================================
