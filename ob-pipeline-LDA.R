@@ -132,7 +132,7 @@ predict_labels_for_file <- function(model, csv_path, rejection_threshold) {
   predictions <- predict(model$LDAclassifier, testing_data)
   post_max <- apply(predictions$posterior, 1, max)
   classes <- as.character(predictions$class)
-  classes[post_max < rejection_threshold] <- "unknown"
+  classes[post_max < rejection_threshold] <- "0"
 
   rm(testing_data, predictions, post_max)
   invisible(gc(verbose = FALSE))
