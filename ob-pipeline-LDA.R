@@ -34,6 +34,9 @@ parser$add_argument('--data.train_labels',
 parser$add_argument('--data.test_matrix',
                     type="character",
                     help='gz-compressed textfile containing the comma-separated data to be clustered.')
+parser$add_argument('--data.label_key',
+                    type="character",
+                    help='label key metadata path (accepted but unused).')
 # parser$add_argument('--data.test_labels',
 #                     type="character",
 #                     help='gz-compressed textfile with the true labels.')
