@@ -258,7 +258,7 @@ cat("Training LDA model…\n")
 LDAclassifier <- train_lda_model(
   training_data = training_data,
   training_labels = training_labels,
-  transformation = FALSE,
+  transformation = "arcsinh",
   markers = RelevantMarkers
 )
 
