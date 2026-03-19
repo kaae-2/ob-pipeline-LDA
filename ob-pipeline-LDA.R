@@ -104,33 +104,15 @@ read_label_no_header <- function(path) {
   suppressWarnings(as.numeric(label_df[[1]]))
 }
 
-train_lda_model <- function(training_data, training_labels, transformation, markers) {
-  if (transformation != FALSE) {
-    if (transformation == "arcsinh") {
-      training_data <- asinh(training_data / 5)
-    } else if (transformation == "log") {
-      training_data <- log(training_data)
-      training_data[sapply(training_data, is.infinite)] <- 0
-    }
-  }
-
+train_lda_model <- function(training_data, training_labels, markers) {
   classifier <- MASS::lda(training_data, as.factor(training_labels))
-  list(LDAclassifier = classifier, Transformation = transformation, markers = markers)
+  list(LDAclassifier = classifier, markers = markers)
 }
 
 predict_labels_for_file <- function(model, csv_path, rejection_threshold) {
   temp <- data.table::fread(csv_path, header = FALSE, data.table = FALSE, showProgress = FALSE)
   testing_data <- temp[, model$markers, drop = FALSE]
   rm(temp)
-
-  if (model$Transformation != FALSE) {
-    if (model$Transformation == "arcsinh") {
-      testing_data <- asinh(testing_data / 5)
-    } else if (model$Transformation == "log") {
-      testing_data <- log(testing_data)
-      testing_data[sapply(testing_data, is.infinite)] <- 0
-    }
-  }
 
   predictions <- predict(model$LDAclassifier, testing_data)
   post_max <- apply(predictions$posterior, 1, max)
@@ -258,7 +240,6 @@ cat("Training LDA model…\n")
 LDAclassifier <- train_lda_model(
   training_data = training_data,
   training_labels = training_labels,
-  transformation = "arcsinh",
   markers = RelevantMarkers
 )
 
