@@ -19,8 +19,8 @@ Preferred (portable):
 Rscript models/LDA/ob-pipeline-LDA.R --name lda --output_dir models/LDA/out/data/analysis/default/lda --data.train_matrix <train.matrix.tar.gz> --data.train_labels <train.labels.tar.gz> --data.test_matrix <test.matrices.tar.gz>
 ```
 
-The checked-in `run_LDA.sh` is currently machine-specific and may require local
-path edits before use.
+`run_LDA.sh` now uses repo-relative preprocessing and output paths, so it is
+directly runnable inside this checkout.
 
 ## Run as part of benchmark
 
