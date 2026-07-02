@@ -81,7 +81,10 @@ get_sample_number <- function(file_name, fallback) {
 
 extract_archive <- function(path, out_dir) {
   dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
-  utils::untar(path, exdir = out_dir)
+  status <- utils::untar(path, exdir = out_dir)
+  if (!identical(status, 0L)) {
+    stop(glue("Failed to extract {path} into {out_dir}; untar exited with status {status}."))
+  }
 }
 
 list_csv_files <- function(path) {
@@ -280,7 +283,18 @@ for (i in seq_along(prediction_files)) {
 
 # Create tar.gz archive of all CSVs
 name <- args[['name']]
-tar(tarfile = glue("{output_dir}/{name}_predicted_labels.tar.gz"), files = csv_files, compression = "gzip", tar = "internal")
+old_wd <- getwd()
+on.exit(setwd(old_wd), add = TRUE)
+setwd(tmp_dir)
+tar_status <- tar(
+  tarfile = glue("{output_dir}/{name}_predicted_labels.tar.gz"),
+  files = basename(csv_files),
+  compression = "gzip",
+  tar = "internal"
+)
+if (!identical(tar_status, 0L)) {
+  stop(glue("Failed to create prediction archive; tar exited with status {tar_status}."))
+}
 
 
 # Temporary workspace is cleaned by on.exit.
