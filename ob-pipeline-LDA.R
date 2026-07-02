@@ -47,10 +47,23 @@ parser$add_argument("--name", "-n", dest="name", type="character", help="name of
 
 args <- parser$parse_args()
 
-# Prepare a unique temp workspace under output dir to avoid collisions and /tmp limits
-output_dir <- args[['output_dir']]
+make_absolute_path <- function(path) {
+  path <- path.expand(path)
+  if (!grepl("^(/|[A-Za-z]:[/\\\\])", path)) {
+    path <- file.path(getwd(), path)
+  }
+  normalizePath(path, mustWork = FALSE)
+}
+
+# Prepare a unique temp workspace outside the final output directory.
+name <- args[['name']]
+output_dir <- make_absolute_path(args[['output_dir']])
+output_tar <- normalizePath(
+  file.path(output_dir, paste0(name, "_predicted_labels.tar.gz")),
+  mustWork = FALSE
+)
 base_tmp <- file.path(
-  output_dir,
+  tempdir(),
   paste0("tmp_LDA_", Sys.getpid(), "_", format(Sys.time(), "%Y%m%d%H%M%S"))
 )
 dir.create(base_tmp, recursive = TRUE, showWarnings = FALSE)
@@ -281,13 +294,13 @@ for (i in seq_along(prediction_files)) {
   invisible(gc(verbose = FALSE))
 }
 
-# Create tar.gz archive of all CSVs
-name <- args[['name']]
+# Create tar.gz archive of all CSVs with short member names.
+dir.create(dirname(output_tar), recursive = TRUE, showWarnings = FALSE)
 old_wd <- getwd()
 on.exit(setwd(old_wd), add = TRUE)
 setwd(tmp_dir)
 tar_status <- tar(
-  tarfile = glue("{output_dir}/{name}_predicted_labels.tar.gz"),
+  tarfile = output_tar,
   files = basename(csv_files),
   compression = "gzip",
   tar = "internal"
